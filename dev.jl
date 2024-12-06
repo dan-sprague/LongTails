@@ -1,84 +1,14 @@
-using Distributions
-using Optim 
-using StatsBase
-using LinearAlgebra
-
-∑ = sum 
-
-"""
-    nbreg_nll(x,μ,α)
-
-Negative binomial regression negative log likelihood function.
-"""
-function nbreg_nll(x,μ,α)
-
-
-    μ = exp(μ[1])
-    α = exp(α[1])
-    
-    r,p = nbreg_transform(μ,α)
-
-    ∑(-logpdf(NegativeBinomial(r,p),x))
-
-
-end
-
-
-
-"""
-    nbreg_transform(μ,α)
-
-Takes the mean and dispersion parameter of a negative binomial distribution and returns the shape and scale parameters of the corresponding gamma distribution.
-"""
-function nbreg_transform(μ,α)
-    σ = μ + (α * μ^2)
-    r = μ^2 / (σ - μ)
-    p = μ / σ
-
-    r,p
-end
-
-
-"""
-    gamma_reg_transform(μ,ϕ)
-
-Takes the mean and dispersion parameter of a gamma distribution and returns the shape and scale parameters of the corresponding gamma distribution.
-"""
-function gamma_reg_transform(μ,ϕ)
-    k = 1 / ϕ
-    θ = @. μ * ϕ
-    k,θ
-end
-
-atr(x,a1,a0) = (a1 / x)  + a0
-
-"""
-    normalize!(X)
-
-Normalizes the columns of a matrix by dividing each column by the geometric mean of the row. Equivalent to DESeq2's median-of-ratios normalization.
-"""
-function normalize!(X;thr = 1)
-    sj = map(median,eachcol(X ./ map(harmmean,eachrow(X))))
-    X ./= sj'   
-end
-    
-"""
-    atr_sim(x;a1=1.0,a0=0.01)
-
-Simulates dispersion trend prior for negative binomial regression.
-"""
-atr_sim(x;a1=1.0,a0=0.01) = (a1 / x) + a0 
-σd = 1.5
-
 using Plots,StatsPlots
 using DataFrames,CSV  
 using Optim
+using StatsBase
+const newaxis = [CartesianIndex()]
 x = 1:50:1000
 
 # Add random noise to the log of the dispersion trend for simulation purposes
 y = reduce(hcat,map(i -> exp.(rand(Normal(log(atr_sim(i)),σd),100)),x))
 
-
+using Random
 df = CSV.read("ENCFF545VIZ.tsv",DataFrame)
 x = @. Int(round(df.est_counts))
 x = x[x .> 0]
@@ -150,3 +80,61 @@ scatter(μ̄,α_init,axis=:log)
 a1,a0, = exp.(Optim.minimizer(optimize(θ -> gamma_trend_nll(α_init,μ̄,θ...),[0.0,0.0,0.0],))[1:2])
 
 scatter!(μ̄,atr.(μ̄,a1,a0))
+
+include("src/negbin.jl")
+include("src/transcriptome.jl")
+
+
+struct Transcriptome
+    c::Vector{Float64}
+    σd::Float64
+    K::Int
+end
+
+function Transcriptome(d::PowerLaw,σd,K)
+    Transcriptome(rand(d,20_000),σd,K)
+end
+
+
+function αtr_sample(x,σ)
+    exp(rand(Normal(log(x),σ)))
+end
+
+function Base.rand(rng::AbstractRNG,d::Transcriptome)
+
+    α = @. αtr_sample(atr_sim(d.c),d.σd)
+    θ = nbreg_transform.(d.c,α)
+
+    reduce(hcat,map(θ -> rand(NegativeBinomial(θ...),d.K),θ))
+
+end
+
+
+function diffsim(X::Matrix;perc_expanding=0.05)
+    expanding = rand(Bernoulli(perc_expanding),size(X,2))
+    FC = rand(Gamma(gamma_reg_transform(2,.005)...),size(X,2)) .* expanding
+    FC[FC .== 0] .= 1
+    FC = map(x -> rand(Bernoulli(0.5)) == 1 ? x : 1 / x,FC)
+    
+    rand(Transcriptome(X .* FC,1.5,3))
+end
+
+
+@time X = rand(Transcriptome(PowerLaw(),1.5,3))
+
+diffsim(X)
+
+
+perc_expanding = 0.05
+
+expanding = [rand(Bernoulli(perc_expanding)) for i in eachindex(x)]
+
+FC = rand(Gamma(gamma_reg_transform(2,.005)...),size(x,1)) .* expanding
+FC[FC .== 0] .= 1
+FC = map(x -> rand(Bernoulli(0.5)) == 1 ? x : 1 / x,FC)
+
+
+
+
+
+dataset = rand(RNASeq(PowerLaw(),1.5,3))
