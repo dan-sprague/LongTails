@@ -6,9 +6,7 @@ const newaxis = [CartesianIndex()]
 x = 1:50:1000
 
 # Add random noise to the log of the dispersion trend for simulation purposes
-y = reduce(hcat,map(i -> exp.(rand(Normal(log(atr_sim(i)),σd),100)),x))
 
-using Random
 df = CSV.read("ENCFF545VIZ.tsv",DataFrame)
 x = @. Int(round(df.est_counts))
 x = x[x .> 0]
@@ -81,60 +79,47 @@ a1,a0, = exp.(Optim.minimizer(optimize(θ -> gamma_trend_nll(α_init,μ̄,θ...)
 
 scatter!(μ̄,atr.(μ̄,a1,a0))
 
+using Random
+
 include("src/negbin.jl")
 include("src/transcriptome.jl")
 
 
-struct Transcriptome
-    c::Vector{Float64}
-    σd::Float64
-    K::Int
-end
-
-function Transcriptome(d::PowerLaw,σd,K)
-    Transcriptome(rand(d,20_000),σd,K)
-end
-
-
-function αtr_sample(x,σ)
-    exp(rand(Normal(log(x),σ)))
-end
-
-function Base.rand(rng::AbstractRNG,d::Transcriptome)
-
-    α = @. αtr_sample(atr_sim(d.c),d.σd)
-    θ = nbreg_transform.(d.c,α)
-
-    reduce(hcat,map(θ -> rand(NegativeBinomial(θ...),d.K),θ))
-
-end
-
-
-function diffsim(X::Matrix;perc_expanding=0.05)
-    expanding = rand(Bernoulli(perc_expanding),size(X,2))
-    FC = rand(Gamma(gamma_reg_transform(2,.005)...),size(X,2)) .* expanding
-    FC[FC .== 0] .= 1
-    FC = map(x -> rand(Bernoulli(0.5)) == 1 ? x : 1 / x,FC)
+function FC!(T::Matrix,X::Vector;perc_expanding=0.05,a=2,b=0.005)
     
-    rand(Transcriptome(X .* FC,1.5,3))
+    n_genes = size(T,2)
+    α,β = gamma_reg_transform(a,b)
+
+    gene_FC = rand(Bernoulli(perc_expanding), n_genes) .* rand(Gamma(α,β),n_genes)
+
+
+    FC_matrix = ones(n_genes,length(X))
+    FC_matrix[:,X .== 1] .= gene_FC 
+
+    T .= Int.(ceil.(T .* permutedims(FC_matrix)))
 end
 
+@time T = rand(Transcriptome(PowerLaw(),1.5,6,100))
 
-@time X = rand(Transcriptome(PowerLaw(),1.5,3))
+X = [0,0,0,1,1,1]
 
-diffsim(X)
+@time FC!(T,X;perc_expanding=1)
 
 
-perc_expanding = 0.05
+T = T[:,.!(map(x -> all(x .== 0),eachcol(T)))]
+μ̄ = dropdims(mean(T;dims=1);dims=1)
 
-expanding = [rand(Bernoulli(perc_expanding)) for i in eachindex(x)]
-
-FC = rand(Gamma(gamma_reg_transform(2,.005)...),size(x,1)) .* expanding
-FC[FC .== 0] .= 1
-FC = map(x -> rand(Bernoulli(0.5)) == 1 ? x : 1 / x,FC)
+α_init = zeros(Float64,size(T,2))
 
 
 
+X = Int.(X .== unique(X)')
+
+μ̂_gr = (permutedims(X) * T) .* permutedims((1 ./ sum(X;dims=1)))
+μ̄ = dropdims(mean(T;dims=1);dims=1)
 
 
-dataset = rand(RNASeq(PowerLaw(),1.5,3))
+α_init = zeros(Float64,size(T,2))
+for i in axes(T,2) 
+    α_init[i] = exp(Optim.minimizer(optimize(α -> nb_alpha_cr_nll(T[:,i],X,μ̂[:,i],μ̄[i],α),[0.0]))[1])
+end

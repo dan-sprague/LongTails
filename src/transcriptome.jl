@@ -65,10 +65,11 @@ struct Transcriptome
     c::Vector{Float64}
     σd::Float64
     K::Int
+    n::Int
 end
 
-function Transcriptome(d::PowerLaw,σd,K)
-    Transcriptome(rand(d,20_000),σd,K)
+function Transcriptome(d::PowerLaw,σd,K,n)
+    Transcriptome(rand(d,n),σd,K,n)
 end
 
 
@@ -83,13 +84,4 @@ function Base.rand(rng::AbstractRNG,d::Transcriptome)
 
     reduce(hcat,map(θ -> rand(NegativeBinomial(θ...),d.K),θ))
 
-end
-
-
-function diffsim(X::Matrix;perc_expanding=0.05)
-    expanding = rand(Bernoulli(perc_expanding),lastindex(X))
-    FC = rand(Gamma(gamma_reg_transform(2,.005)...),size(X,1)) .* expanding
-    FC[FC .== 0] .= 1
-    FC = map(x -> rand(Bernoulli(0.5)) == 1 ? x : 1 / x,FC)
-    rand(Transcriptome(X .* FC,1.5,3))
 end
