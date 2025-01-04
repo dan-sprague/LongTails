@@ -85,3 +85,19 @@ function Base.rand(rng::AbstractRNG,d::Transcriptome)
     reduce(hcat,map(θ -> rand(NegativeBinomial(θ...),d.K),θ))
 
 end
+
+
+function FC!(T::Matrix,X::Vector;perc_expanding=0.05,a=2,b=0.005)
+    
+    n_genes = size(T,2)
+    α,β = gamma_reg_transform(a,b)
+
+    gene_FC = rand(Bernoulli(perc_expanding), n_genes) .* rand(Gamma(α,β),n_genes)
+
+
+    FC_matrix = ones(n_genes,length(X))
+    FC_matrix[:,X .== 1] .= gene_FC 
+
+    T .= Int.(ceil.(T .* permutedims(FC_matrix)))
+end
+
