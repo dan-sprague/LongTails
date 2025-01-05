@@ -19,6 +19,12 @@ function nbreg_nll(x,μ,α)
 
 end
 
+
+"""
+    nb_alpha_cr_nll(x,d,μ̂,μ̄,α)
+
+Negative binomial regression negative log likelihood function with Cox-Reid regularization.
+"""
 function nb_alpha_cr_nll(x,d,μ̂,μ̄,α)
     nb_nll = nbreg_nll(x,log(μ̄),α)
     w = diagm(1 ./ ((1 ./ (d * μ̂)) .+ exp.(α)))
