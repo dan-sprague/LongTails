@@ -34,6 +34,18 @@ function Distributions.logpdf(d::PowerLaw,x)
     sum(@. _logpdf(d,x))
 end
 
+
+"""
+    _logpdf(d::PowerLaw,x)
+The log probability density function of a PowerLaw distribution.
+"""
+function _logpdf(d::PowerLaw,x)
+    ((d.α - 1) / d.x_min) + (-d.α  * log(x / d.x_min))
+end
+
+
+
+
 function Base.rand(rng::AbstractRNG,d::PowerLaw)
     U = rand(rng)
     X = ((d.C / ((d.α - 1) * U))^(1 / (d.α - 1)))
