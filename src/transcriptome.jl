@@ -24,23 +24,13 @@ PowerLaw(;α=2.0,x_min=1) = PowerLaw(
     (α - 1) * x_min^(α - 1)
 )
 
-"""
-    _logpdf(d::PowerLaw,x)
-
-The log probability density function of a PowerLaw distribution.
-
-"""
-function _logpdf(d::PowerLaw,x)
-    ((d.α - 1) / d.x_min) + (-d.α  * log(x / d.x_min))
-end
-
 
 """
     logpdf(d::PowerLaw,x)
 
 The log probability density function of a PowerLaw distribution, over a vector or scalar x.
 """
-function logpdf(d::PowerLaw,x)
+function Distributions.logpdf(d::PowerLaw,x)
     sum(@. _logpdf(d,x))
 end
 
@@ -100,4 +90,5 @@ function FC!(T::Matrix,X::Vector;perc_expanding=0.05,a=2,b=0.005)
 
     T .= Int.(ceil.(T .* permutedims(FC_matrix)))
 end
+
 

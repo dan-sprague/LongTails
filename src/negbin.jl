@@ -1,8 +1,3 @@
-using Distributions
-using Optim 
-using StatsBase
-using LinearAlgebra
-
 ∑ = sum 
 
 """
@@ -17,9 +12,19 @@ function nbreg_nll(x,μ,α)
     α = exp(α[1])
     
     r,p = nbreg_transform(μ,α)
+    
 
     ∑(-logpdf(NegativeBinomial(r,p),x))
 
+
+end
+
+function nb_alpha_cr_nll(x,d,μ̂,μ̄,α)
+    nb_nll = nbreg_nll(x,log(μ̄),α)
+    w = diagm(1 ./ ((1 ./ (d * μ̂)) .+ exp.(α)))
+
+    cr = 0.5 * log(det(d' * w * d))
+    nb_nll + cr
 
 end
 
@@ -51,16 +56,6 @@ function gamma_reg_transform(μ,ϕ)
 end
 
 atr(x,a1,a0) = (a1 / x)  + a0
-
-"""
-    normalize!(X)
-
-Normalizes the columns of a matrix by dividing each column by the geometric mean of the row. Equivalent to DESeq2's median-of-ratios normalization.
-"""
-function normalize!(X;thr = 1)
-    sj = map(median,eachcol(X ./ map(harmmean,eachrow(X))))
-    X ./= sj'   
-end
     
 """
     atr_sim(x;a1=1.0,a0=0.01)
