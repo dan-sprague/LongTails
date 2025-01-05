@@ -55,6 +55,20 @@ function gamma_reg_transform(μ,ϕ)
     k,θ
 end
 
+
+function gamma_trend_nll(α,x,a1,a0,ϕ)
+    
+    a1 = exp(a1)
+    a0 = exp(a0)
+    ϕ = exp(ϕ)
+    μ = atr.(x,a1,a0)
+
+    k,θ = gamma_reg_transform(μ,ϕ)
+    sum(@. -logpdf(Gamma(k,θ),α))
+end
+
+
+
 atr(x,a1,a0) = (a1 / x)  + a0
     
 """
