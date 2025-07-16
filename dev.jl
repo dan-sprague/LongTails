@@ -1,27 +1,3 @@
-function gamma_trend_nll(α,x,a1,a0,ϕ)
-    
-    a1 = exp(a1)
-    a0 = exp(a0)
-    ϕ = exp(ϕ)
-    μ = atr.(x,a1,a0)
-
-    k,θ = gamma_reg_transform(μ,ϕ)
-    sum(@. -logpdf(Gamma(k,θ),α))
-end
-
-
-
-Threads.@threads for i in axes(X,1) 
-    α_init[i] = exp(Optim.minimizer(optimize(α -> nb_alpha_cr_nll(X[i,:],d,μ̂[i,:],μ̄[i],α),[0.0]))[1])
-
-end
-
-scatter(μ̄,α_init,axis=:log)
-
-a1,a0, = exp.(Optim.minimizer(optimize(θ -> gamma_trend_nll(α_init,μ̄,θ...),[0.0,0.0,0.0],))[1:2])
-
-scatter!(μ̄,atr.(μ̄,a1,a0))
-
 using Random
 using Distributions
 using Optim 
@@ -29,79 +5,143 @@ using StatsBase
 using LinearAlgebra
 using Base.Threads
 using Plots
+using SpecialFunctions
+using GLM
+using DataFrames
+using StatsModels
+∑ = sum 
 
 const newaxis = [CartesianIndex()]
-
-include("src/negbin.jl")
+include("src/data.jl")
+include("src/likelihood.jl")
+include("src/negbin2.jl")
 include("src/transcriptome.jl")
 include("src/utils.jl")
+include("src/dispersion_trend.jl")
+include("src/math.jl")
+include("src/gamma.jl")
 T = rand(Transcriptome(PowerLaw(),1.0,6,10000))
 
+metadata = DataFrame(
+    sample = ["sample1","sample2","sample3","sample4","sample5","sample6"],
+    condition = ["control","control","control","treatment","treatment","treatment"],
+    batch = ["batch1","batch2","batch1","batch2","batch1","batch2"],
+    temp = [1.1,2.3,5.6,1.2,3.4,2.1],
+#    y = [1,50,55,2,35,3]
+)
+
+convertToFactor!(metadata)
+extended_metadata = buildExtendedDesignMatrix(metadata)
+
+FORMULA = "logFC ~ condition + batch"
+
+f = eval(Meta.parse("@formula($FORMULA + 1)"))
+designMatrix = modelmatrix(f,metadata)
+expandedDesignMatrix = modelmatrix(f,extended_metadata)
+
+
+
+sj = sim_library_size!(T)
+FC = sim_FC(size(T,2),size(X,2))
+
+using StatsPlots
+
+boxplot((T .* sj)' .+ 1,yscale=:log)
+
+T .* FC 
+
+
+
+
+T .= Int.(ceil.(T .* permutedims(FC_matrix)))
 X = [0,0,0,1,1,1]
 
 FC!(T,X;perc_expanding=1)
 
 T = clean_zeros(T)
-μ̄ = dropdims(mean(T;dims=1);dims=1)
-
 α_init = zeros(Float64,size(T,2))
 
 
 
 X = Int.(X .== unique(X)')
 
-μ̂_gr = (permutedims(X) * T) .* permutedims((1 ./ sum(X;dims=1)))
-μ̄ = dropdims(mean(T;dims=1);dims=1)
+data = LongTailsDataSet(X,T)
 
 
-α_init = zeros(Float64,size(T,2))
-idx = ones(Bool,size(T,2))
-@threads for i in eachindex(α_init[idx])
-    α_init[i] = exp(Optim.minimizer(optimize(α -> nb_alpha_cr_nll(T[:,i],X,μ̂_gr[:,i],μ̄[i],α),[0.0]))[1])
+α_mom = map(t -> method_of_moments(t),eachcol(T))
+
+log_α_mom = log.(α_mom)
+
+
+
+
+
+
+
+function cr_grad(X,μ,α)
+    W = diagm(@. 1 / ((1 / μ) + α))
+    dW = diagm(@. -1/(1/μ + α)^2)
+
+    M = X' * W * X
+    det(M) * tr((M \ (X' * dW * X)))
+end
+
+function cr_hessian(X, μ̂, α)
+
+    μ = X * μ̂
+    # First derivatives of W
+    
+    # Second derivative of W
+    W = diagm(@. 1 / ((1 / μ) + α))
+    dW = diagm(@. -1/(1/μ + α)^2)
+    d2W = Diagonal(@. 2/(1/μ + α)^3)
+    
+    M = X' * W * X
+    M_inv = M \ I
+    
+    # Using matrix calculus for second derivative of log determinant
+    term1 = tr(M_inv * X' * dW * X)
+    term2 = -tr(M_inv * X' * dW * X * M_inv * X' * dW * X)
+    term3 = tr(M_inv * X' * d2W * X)
+    
+    return 0.5 * (term1 + term2 + term3)
 end
 
 
-a1,a0, = exp.(Optim.minimizer(optimize(θ -> gamma_trend_nll(α_init,μ̄,θ...),[0.0,0.0,0.0],))[1:2])
+@time cr_hessian(X,μ̂[:,1],1)
 
-α_fit = atr.(μ̄,a1,a0)
+function alt_∂α(x,μ,α)
 
-α_ratio = α_fit ./ α_init
+    ϕ = 1 /α
+    acc = 0.0
+    @inbounds for j in 0:(x-1)
+        acc += (1 / (j + ϕ))
+    end
+    α^(-2) * (log(1 + α * μ) - acc + ((x - μ) / (α * (1 + α * μ))))
+ 
+end
 
-idx = @. 1e-4 <= α_ratio <= 15 
+
+function alt_∂²α(x,μ,α)
+    acc = 0.0
+    @inbounds for j in 0:(x-1)
+        acc += (j / 1 + α*j)^2
+    end
+
+    acc + 
+    (2 * α^(-3) * log(1 + α*μ)) - 
+    ((2* α^(-2) * μ) / (1 + α*μ)) - 
+    (((x + α^(-1)) * μ^2)/(1 + α*μ)^2)
+end
 
 
+
+iter
 
 xplot = sort(μ̄)
 yplot = atr.(xplot,a1,a0)
 
-p1 = scatter(μ̄,α_init,axis=:log,label=:none,markerstrokewidth=0.0,color=:grey,alpha=0.2,grid=:none,
+p1 = scatter(μ̄[fit.final_indices],α_init[fit.final_indices],axis=:log,label=:none,markerstrokewidth=0.0,color=:grey,alpha=0.2,grid=:none,
     xlabel="Mean expression",ylabel="Dispersion parameter",fontfamily = "Arial",dpi=300,
     size=(400,300),legend=:none,tickfontsize=10,guidefontsize=12)
 plot!(xplot,yplot,label=:none,markerstrokewidth=0.0,color=:red,alpha=1.0,linewidth=2,)
-
-
-using GLM
-using DataFrames
-
-t = T[:,1]
- 
-
-
-d = DataFrame(hcat(t,X),[:t,:x1,:x2])
-
-nbmodel = negbin(@formula(t ~ x1 + x2),d,LogLink())
-
-coef(nbmodel)
-
-exp.(X * coef(nbmodel)[2:end] .+ coef(nbmodel)[1])
-
-θ = randn(2)
-b = randn()
-
-
-
-
-α_mom = map(t -> method_of_moments(X,t),eachcol(T))
-
-
-

@@ -89,18 +89,13 @@ function Base.rand(rng::AbstractRNG,d::Transcriptome)
 end
 
 
-function FC!(T::Matrix,X::Vector;perc_expanding=0.05,a=2,b=0.005)
-    
-    n_genes = size(T,2)
-    α,β = gamma_reg_transform(a,b)
-
-    gene_FC = rand(Bernoulli(perc_expanding), n_genes) .* rand(Gamma(α,β),n_genes)
-
-
-    FC_matrix = ones(n_genes,length(X))
-    FC_matrix[:,X .== 1] .= gene_FC 
-
-    T .= Int.(ceil.(T .* permutedims(FC_matrix)))
+function sim_FC(n_genes::Int,n_cov)
+    rand(TDist(3),n_genes,n_cov)
 end
 
+function sim_library_size(n)
+
+    return rand(Beta(3,3),n) .+ 0.5
+
+end
 
