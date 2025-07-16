@@ -21,7 +21,7 @@ function convertToFactor!(metadata::DataFrame)
 end 
 
 
-function buildExtendedDesignMatrix(metadata)
+function buildExtendedDesignMatrix(metadata::DataFrame)
     extended_metadata = vcat(metadata, metadata[end:end, :])
 
     for factor in propertynames(extended_metadata)

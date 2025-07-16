@@ -16,12 +16,16 @@ function logpmf(n::NegBin2,x::Int)
 end
 
 
-function Base.rand(d::NegBin2, n::Int)
-    r,p = nbreg_transform(d.μ,d.α)
-
-    rand(NegativeBinomial(r,p),n)
-
+function Base.rand(rng::AbstractRNG, d::NegBin2)
+    # Gamma(shape, scale) where scale = 1/rate
+    shape = 1/d.α
+    scale = d.μ * d.α  # This is 1/rate, so rate = 1/(μ*α)
+    λ = rand(rng, Gamma(shape, scale))
+    rand(rng, Poisson(λ))
 end
+
+
+
 
 """
     nb_alpha_cr_nll(x,d,μ̂,μ̄,α)

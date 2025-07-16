@@ -9,6 +9,7 @@ using SpecialFunctions
 using GLM
 using DataFrames
 using StatsModels
+using CategoricalArrays
 ∑ = sum 
 
 const newaxis = [CartesianIndex()]
@@ -20,7 +21,6 @@ include("src/utils.jl")
 include("src/dispersion_trend.jl")
 include("src/math.jl")
 include("src/gamma.jl")
-T = rand(Transcriptome(PowerLaw(),1.0,6,10000))
 
 metadata = DataFrame(
     sample = ["sample1","sample2","sample3","sample4","sample5","sample6"],
@@ -39,9 +39,13 @@ f = eval(Meta.parse("@formula($FORMULA + 1)"))
 designMatrix = modelmatrix(f,metadata)
 expandedDesignMatrix = modelmatrix(f,extended_metadata)
 
+T= Transcriptome(PowerLaw(),0.1,designMatrix,10000)
+
+K,β= test(T)
+K 
 
 
-sj = sim_library_size!(T)
+sj = sim_library_size(size(T,1))
 FC = sim_FC(size(T,2),size(X,2))
 
 using StatsPlots

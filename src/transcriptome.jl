@@ -64,28 +64,41 @@ function Base.rand(d::PowerLaw,n::Integer)
 end
 
 struct Transcriptome
-    c::Vector{Float64}
+    d::PowerLaw
     σd::Float64
-    K::Int
+    X::Matrix
     n::Int
 end
 
-function Transcriptome(d::PowerLaw,σd,K,n)
-    Transcriptome(rand(d,n),σd,K,n)
+function Transcriptome(d::PowerLaw,σd,X,n)
+    Transcriptome(d,σd,X,n)
 end
 
 
-function αtr_sample(x,σ)
-    exp(rand(Normal(log(x),σ)))
+ 
+
+function αtr_sample(μ̄,σ)
+    exp(rand(Normal(log((0.5 / μ̄) + 0.025),σ)))
 end
 
-function Base.rand(rng::AbstractRNG,d::Transcriptome)
 
-    α = @. αtr_sample(atr_sim(d.c),d.σd)
-    θ = nbreg_transform.(d.c,α)
+function test(T::Transcriptome)
+    designMatrix = T.X
+    d = T.d
+    σd = T.σd
+    n_cov = size(designMatrix,2) - 1
+    K = zeros(Int,size(designMatrix,1),T.n)
+    β = rand(Normal(),n_cov,T.n)
+    for i in 1:T.n
+        baseMean = rand(d)
+        α = αtr_sample(baseMean, σd)
+        counts = designMatrix * vcat(log(baseMean),β[:,i])
+        counts = exp.(counts)
+        K[:,i] .= rand.(NegBin2.(counts,Ref(α)))
 
-    reduce(hcat,map(θ -> rand(NegativeBinomial(θ...),d.K),θ))
+    end
 
+    (K,β)
 end
 
 
