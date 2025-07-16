@@ -2,3 +2,5 @@
 *.tsv
 DESeq2
 PyDESeq2
+CLAUDE.md
+CLAUDE.local.md
