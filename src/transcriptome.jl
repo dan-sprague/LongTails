@@ -63,15 +63,15 @@ function Base.rand(d::PowerLaw,n::Integer)
     rand(Random.default_rng(),d,n)
 end
 
-struct Transcriptome
+struct DifferentialTranscriptome
     d::PowerLaw
     σd::Float64
     X::Matrix
     n::Int
 end
 
-function Transcriptome(d::PowerLaw,σd,X,n)
-    Transcriptome(d,σd,X,n)
+function DifferentialTranscriptome(d::PowerLaw,σd,X,n)
+    DifferentialTranscriptome(d,σd,X,n)
 end
 
 
@@ -82,33 +82,36 @@ function αtr_sample(μ̄,σ)
 end
 
 
-function test(T::Transcriptome)
+function Base.rand(rng::AbstractRNG,T::DifferentialTranscriptome)
+
+
     designMatrix = T.X
     d = T.d
     σd = T.σd
     n_cov = size(designMatrix,2) - 1
     K = zeros(Int,size(designMatrix,1),T.n)
     β = rand(Normal(),n_cov,T.n)
+    baseMean = rand(d,T.n)
+
+    sizeFactors = sim_library_size(size(designMatrix,1))
+
     for i in 1:T.n
-        baseMean = rand(d)
-        α = αtr_sample(baseMean, σd)
-        counts = designMatrix * vcat(log(baseMean),β[:,i])
-        counts = exp.(counts)
+
+        log_counts = log.(sizeFactors) .+ designMatrix * vcat(log(baseMean[i]),β[:,i])
+        counts = exp.(log_counts)
+        α = αtr_sample(mean(counts), σd)
+
         K[:,i] .= rand.(NegBin2.(counts,Ref(α)))
 
     end
 
-    (K,β)
+    (K,vcat(baseMean',β),sizeFactors)
 end
 
 
-function sim_FC(n_genes::Int,n_cov)
-    rand(TDist(3),n_genes,n_cov)
-end
+  function sim_library_size(n; cv=0.3)
+      σ = sqrt(log(cv^2 + 1))  # Convert CV to log-normal σ
 
-function sim_library_size(n)
-
-    return rand(Beta(3,3),n) .+ 0.5
-
-end
-
+      factors = exp.(rand(Normal(0, σ), n))
+      factors ./ exp(mean(log.(factors))) 
+  end
