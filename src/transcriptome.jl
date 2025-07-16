@@ -64,42 +64,37 @@ function Base.rand(d::PowerLaw,n::Integer)
 end
 
 struct DifferentialTranscriptome
-    d::PowerLaw
-    σd::Float64
-    X::Matrix
-    n::Int
+    distribution::PowerLaw
+    design::Matrix
+    αtr_σd::Float64
+    αtr_a1::Float64
+    αtr_a0::Float64
+    n_genes::Int
 end
 
-function DifferentialTranscriptome(d::PowerLaw,σd,X,n)
-    DifferentialTranscriptome(d,σd,X,n)
-end
-
-
- 
-
-function αtr_sample(μ̄,σ)
-    exp(rand(Normal(log((0.5 / μ̄) + 0.025),σ)))
+function αtr_sample(μ̄,t::DifferentialTranscriptome)
+    exp(rand(Normal(log((t.αtr_a1 / μ̄) + t.αtr_a0),t.αtr_σd)))
 end
 
 
 function Base.rand(rng::AbstractRNG,T::DifferentialTranscriptome)
 
 
-    designMatrix = T.X
-    d = T.d
-    σd = T.σd
+    designMatrix = T.design
+    d = T.distribution
+    αtr_σd = T.αtr_σd
     n_cov = size(designMatrix,2) - 1
-    K = zeros(Int,size(designMatrix,1),T.n)
-    β = rand(Normal(),n_cov,T.n)
-    baseMean = rand(d,T.n)
+    K = zeros(Int,size(designMatrix,1),T.n_genes)
+    β = rand(Normal(),n_cov,T.n_genes)
+    baseMean = rand(d,T.n_genes)
 
     sizeFactors = sim_library_size(size(designMatrix,1))
 
-    for i in 1:T.n
+    for i in 1:T.n_genes
 
         log_counts = log.(sizeFactors) .+ designMatrix * vcat(log(baseMean[i]),β[:,i])
         counts = exp.(log_counts)
-        α = αtr_sample(mean(counts), σd)
+        α = αtr_sample(mean(counts), T)
 
         K[:,i] .= rand.(NegBin2.(counts,Ref(α)))
 
