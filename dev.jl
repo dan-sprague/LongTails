@@ -39,20 +39,19 @@ f = eval(Meta.parse("@formula($FORMULA + 1)"))
 designMatrix = modelmatrix(f,metadata)
 expandedDesignMatrix = modelmatrix(f,extended_metadata)
 
-T= Transcriptome(PowerLaw(),0.1,designMatrix,10000)
+config = (distribution = PowerLaw(),
+        design = designMatrix,
+        αtr_σd = 0.1,
+        αtr_a1 = 0.5,
+        αtr_a0 = 0.025,
+        n_genes = 10000
+    )
+K,β,sj= rand(DifferentialTranscriptome(config...))
 
-K,β= test(T)
-K 
 
 
-sj = sim_library_size(size(T,1))
-FC = sim_FC(size(T,2),size(X,2))
 
-using StatsPlots
 
-boxplot((T .* sj)' .+ 1,yscale=:log)
-
-T .* FC 
 
 
 
