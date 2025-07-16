@@ -100,7 +100,7 @@ function Base.rand(rng::AbstractRNG,T::DifferentialTranscriptome)
 
     end
 
-    (K,vcat(baseMean',β),sizeFactors)
+    (counts = K,parameters = (vcat(baseMean',β),sizeFactors))
 end
 
 
