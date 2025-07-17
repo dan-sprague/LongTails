@@ -43,6 +43,8 @@ f = eval(Meta.parse("@formula($FORMULA + 1)"))
 designMatrix = modelmatrix(f,metadata)
 expandedDesignMatrix = modelmatrix(f,extended_metadata)
 
+
+
 config = (distribution = PowerLaw(),
         design = designMatrix,
         αtr_σd = 0.1,
@@ -50,17 +52,18 @@ config = (distribution = PowerLaw(),
         αtr_a0 = 0.025,
         avg_effective_length = 2000,
         n_genes = 10000
-    )
-simulation = rand(DifferentialTranscriptome(config...))
+)
 
+c = []
+for i in 1:100
+    simulation = rand(DifferentialTranscriptome(config...))
+    effLengths = ones(6,10000)
 
+    data = LongTailsDataSet(simulation.counts,effLengths)
+    s = simpleScalingFactors(simulation.counts)
 
-
-
-
-
-
-
+    push!(c,cor(s,simulation.parameters.sj))
+end
 T .= Int.(ceil.(T .* permutedims(FC_matrix)))
 X = [0,0,0,1,1,1]
 

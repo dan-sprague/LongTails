@@ -52,6 +52,16 @@ function scalingFactors(data::LongTailsDataSet)
 end
 
 
+function simpleScalingFactors(counts)
+    logGeoMeans = map(logGeoMeanZeros, eachcol(counts))
+    z = (log.(counts) .- logGeoMeans')
+    sj = map(x -> median(x[.!isinf.(x)]), eachrow(z)) .|> exp
+
+    sj ./ geomean(sj)
+end
+
+
+
 """
     convertToFactor!(metadata::DataFrame)
 
