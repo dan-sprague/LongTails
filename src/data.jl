@@ -3,25 +3,53 @@ struct LongTailsDataSet
     effLengths::Matrix
 end
 
-function geomeanZeros(x)
-    all(x .== 0) ? 0.0 : exp(mean(log.(x[x .> 0])) / length(x))
+
+function logGeoMeanZeros(x)
+    all(x .== 0) ? 0.0 : sum(log.(x[x .> 0])) / length(x)
 end
 
-function normalize(data::LongTailsDataSet)
+
+"""
+    scalingFactors(data::LongTailsDataSet)
+
+    Scales the counts in `data.K` by the effective lengths in `data.effLengths`
+    and for sequencing depth differences across samples.
+
+    Returns a matrix with scaling offsets for each gene and sample.
+
+"""
+function scalingFactors(data::LongTailsDataSet)
 
     L = data.effLengths
     L ./= exp.(mean(log.(L);dims=1))
 
-    geomeanz = map(geomeanZeros, eachcol(K))
+    effLengthNormalizedCounts = data.K ./ L 
 
-    log_sj = median(log(len_normed) .- mean(log.(len_normed);dims=1);dims=2)
-    sj = exp.(log_sj)
+    ### Correcting what I believe is a bug in the original code
+    ### The original code passed normalized counts to estimateSizeFactorsForMatrix
+    ### for the counts arg, but the geomeans used for normalization where
+    ### calculated from the original counts, not the normalized counts.
+    logGeoMeans = map(logGeoMeanZeros, eachcol(effLengthNormalizedCounts))
+    mask = @. effLengthNormalizedCounts > 0 & !isinf(logGeoMeans)'
 
-    sj = len_normed * sj 
+    sj = zeros(Float64,size(data.K,1))
 
-    sj / exp.(mean(log.(sj);dims=1))
+    for i in axes(data.K,1)
+        z = log.(effLengthNormalizedCounts[i,:]) .- logGeoMeans
+        sj[i] = z[mask[i,:]] |> median |> exp
+    end 
+
+
+    sj ./ geomean(sj)
+
+    nf = L .* sj
+
+    nf ./ exp.(mean(log.(nf);dims=1))
 
 end
+
+
+normalize(data)
 
 function convertToFactor!(metadata::DataFrame)
         
