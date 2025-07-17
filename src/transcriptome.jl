@@ -69,6 +69,7 @@ struct DifferentialTranscriptome
     αtr_σd::Float64
     αtr_a1::Float64
     αtr_a0::Float64
+    avg_effective_length::Float64
     n_genes::Int
 end
 
@@ -91,8 +92,8 @@ function Base.rand(rng::AbstractRNG,T::DifferentialTranscriptome)
     sizeFactors = sim_library_size(size(designMatrix,1))
 
     for i in 1:T.n_genes
-
-        log_counts = log.(sizeFactors) .+ designMatrix * vcat(log(baseMean[i]),β[:,i])
+        offset = log.(sizeFactors)
+        log_counts = offset .+ designMatrix * vcat(log(baseMean[i]),β[:,i])
         counts = exp.(log_counts)
         α = αtr_sample(mean(counts), T)
 
@@ -100,7 +101,7 @@ function Base.rand(rng::AbstractRNG,T::DifferentialTranscriptome)
 
     end
 
-    (counts = K,parameters = (vcat(baseMean',β),sizeFactors))
+    (counts = K,parameters = (β = vcat(baseMean',β),sj = sizeFactors))
 end
 
 
@@ -110,3 +111,10 @@ end
       factors = exp.(rand(Normal(0, σ), n))
       factors ./ exp(mean(log.(factors))) 
   end
+
+
+function sim_effective_lengths(n_genes::Int)
+
+    lengths = exp.(rand(Normal(log(2000), 0.8), n_genes))
+    clamp.(lengths, 200, 100000)
+end

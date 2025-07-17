@@ -22,6 +22,10 @@ include("src/dispersion_trend.jl")
 include("src/math.jl")
 include("src/gamma.jl")
 
+
+
+#### NEED TO INCLUDE EFFECTIVE LENGTH OFFSET ####
+
 metadata = DataFrame(
     sample = ["sample1","sample2","sample3","sample4","sample5","sample6"],
     condition = ["control","control","control","treatment","treatment","treatment"],
@@ -44,9 +48,10 @@ config = (distribution = PowerLaw(),
         αtr_σd = 0.1,
         αtr_a1 = 0.5,
         αtr_a0 = 0.025,
+        avg_effective_length = 2000,
         n_genes = 10000
     )
-K,β,sj= rand(DifferentialTranscriptome(config...))
+simulation = rand(DifferentialTranscriptome(config...))
 
 
 
