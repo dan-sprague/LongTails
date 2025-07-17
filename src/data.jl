@@ -4,6 +4,12 @@ struct LongTailsDataSet
 end
 
 
+"""
+    logGeoMeanZeros(x)
+
+    Computes the log geometric mean of a vector `x`, treating zeros as missing values.
+    If all values in `x` are zero, returns 0.0.
+"""
 function logGeoMeanZeros(x)
     all(x .== 0) ? 0.0 : sum(log.(x[x .> 0])) / length(x)
 end
@@ -26,9 +32,6 @@ function scalingFactors(data::LongTailsDataSet)
     effLengthNormalizedCounts = data.K ./ L 
 
     ### Correcting what I believe is a bug in the original code
-    ### The original code passed normalized counts to estimateSizeFactorsForMatrix
-    ### for the counts arg, but the geomeans used for normalization where
-    ### calculated from the original counts, not the normalized counts.
     logGeoMeans = map(logGeoMeanZeros, eachcol(effLengthNormalizedCounts))
     mask = @. effLengthNormalizedCounts > 0 & !isinf(logGeoMeans)'
 
@@ -49,8 +52,11 @@ function scalingFactors(data::LongTailsDataSet)
 end
 
 
-normalize(data)
+"""
+    convertToFactor!(metadata::DataFrame)
 
+Converts non-numeric columns in the `metadata` DataFrame to categorical factors.
+"""
 function convertToFactor!(metadata::DataFrame)
         
     for factor in propertynames(metadata)
@@ -60,13 +66,13 @@ function convertToFactor!(metadata::DataFrame)
     end
 end 
 
-K = simulation.counts 
-L ./= exp.(mean(log.(L);dims=1))
-len_normed = K ./ L 
 
-log.(len_normed) .- mean(log.(len_normed);dims=1)
+"""
+    buildExtendedDesignMatrix(metadata::DataFrame)
 
+    Builds an extended design matrix from the metadata DataFrame by duplicating the last row, as described in the original code and paper.
 
+"""
 function buildExtendedDesignMatrix(metadata::DataFrame)
     extended_metadata = vcat(metadata, metadata[end:end, :])
 
