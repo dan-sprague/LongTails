@@ -23,9 +23,6 @@ include("src/math.jl")
 include("src/gamma.jl")
 
 
-
-#### NEED TO INCLUDE EFFECTIVE LENGTH OFFSET ####
-
 metadata = DataFrame(
     sample = ["sample1","sample2","sample3","sample4","sample5","sample6"],
     condition = ["control","control","control","treatment","treatment","treatment"],
