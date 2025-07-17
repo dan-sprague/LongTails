@@ -3,7 +3,7 @@
 ![Long Tailed Lizard](./takydromus_sexlineatus.jpg)
 
 
-This is a scratch Julia implementation of the DESeq2 algorithm for differential expression analysis from RNAseq datasets. More generally, DESeq2 provides robust estimates of dispersion for Negative Binomial GLMs when there is a count dependence on average dispersion values. This enables NB GLMs to be fit to noisy datasets where few replicates are available.
+This is a scratch Julia implementation of the DESeq2 algorithm for differential expression analysis from RNAseq datasets. More generally, DESeq2 provides robust estimates of dispersion for Negative Binomial GLMs when there is a dispersion dependence on mean observed counts. This enables NB GLMs to be fit to noisy datasets where few replicates are available.
 
 
 This repository is a work in progress
