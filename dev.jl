@@ -43,7 +43,7 @@ design = Design(f,metadata)
 
 
 config = (distribution = PowerLaw(),
-        design = designMatrix,
+        design = designMatrix(design;expanded=false),
         αtr_σd = 0.1,
         αtr_a1 = 0.5,
         αtr_a0 = 0.05,

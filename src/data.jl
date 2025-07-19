@@ -12,7 +12,6 @@ function Design(formula::Formula, metadata::DataFrame)
     Design(designMatrix, extendedDesignMatrix, formula)
 end
 
-
 struct LongTailsDataSet
     K::Matrix{Int64}
     effLengths::Matrix{Float64}
@@ -40,6 +39,7 @@ end
 
 counts(d::LongTailsDataSet;norm=false) = norm ? d.K ./ d.nf : d.K
 designMatrix(d::LongTailsDataSet;expanded=false) = expanded ? d.design.expandedMatrix : d.design.matrix
+designMatrix(d::Design; expanded=false) = expanded ? d.expandedMatrix : d.matrix
 μ(d::LongTailsDataSet) = d.μ
 σ²(d::LongTailsDataSet) = d.σ²
 nf(d::LongTailsDataSet) = d.nf
