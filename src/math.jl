@@ -12,14 +12,16 @@ end
 meancount(t,X) = transpose(X) * t 
 
 function method_of_moments(x::LongTailsDataSet)
-    xim = mean(1 ./ x.nf)
-    @. max((x.σ² - xim*x.μ) / x.μ,1e-4)
+    xim = mean(1 ./ nf(x))
+    mu,var = μ(x), σ²(x)
+    
+    @. max((var - mu) / mu^2,1e-4)
 end
 
 function linear_μ(data::LongTailsDataSet)
-    QR = qr(X)
-
+    QR = qr(designMatrix(data))
     QR \ counts(data;norm=true)
 end
+
 
 

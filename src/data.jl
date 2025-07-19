@@ -1,13 +1,13 @@
 struct Design
-    matrix::Matrix{Float64}
-    expandedMatrix::Matrix{Float64}
-    formula::Formula
+    matrix::Matrix
+    expandedMatrix::Matrix
+    formula
 end
 
-function Design(formula::Formula, metadata::DataFrame)
-    metadata = convertToFactor!(metadata)
+function Design(formula, metadata::DataFrame)
+    convertToFactor!(metadata)
     designMatrix = modelmatrix(formula, metadata)
-    extendedDesignMatrix = buildExtendedDesignMatrix(metadata)
+    extendedDesignMatrix = modelmatrix(formula, buildExtendedDesignMatrix(metadata))
 
     Design(designMatrix, extendedDesignMatrix, formula)
 end
@@ -24,9 +24,8 @@ end
 
 
 function LongTailsDataSet(K::Matrix{Int}, effLengths::Matrix{Float64},
-    metadata::DataFrame, formula::Formula)
+    design::Design)
     nf = scalingFactors(K, effLengths)
-    design = Design(formula, metadata)
     LongTailsDataSet(K,
         effLengths,
         nf,

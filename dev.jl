@@ -13,6 +13,7 @@ using CategoricalArrays
 ∑ = sum 
 
 const newaxis = [CartesianIndex()]
+
 include("src/data.jl")
 include("src/likelihood.jl")
 include("src/negbin2.jl")
@@ -23,8 +24,6 @@ include("src/math.jl")
 include("src/gamma.jl")
 
 
-
-#### NEED TO INCLUDE EFFECTIVE LENGTH OFFSET ####
 
 metadata = DataFrame(
     sample = ["sample1","sample2","sample3","sample4","sample5","sample6"],
@@ -41,7 +40,6 @@ design = Design(f,metadata)
 
 
 
-
 config = (distribution = PowerLaw(),
         design = designMatrix(design;expanded=false),
         αtr_σd = 0.1,
@@ -52,9 +50,15 @@ config = (distribution = PowerLaw(),
 )
 simulation = rand(DifferentialTranscriptome(config...))
 T = simulation.counts 
-T = clean_zeros(T)
-data = LongTailsDataSet(T, ones(Float64,size(T)))
+mask = clean_zeros(T)
+
+data = LongTailsDataSet(T[:,mask], ones(Float64,size(T[:,mask])),design)
+
 α_mom = method_of_moments(data)
+
+scatter(μ(data),α_mom,axis=:log,label=:none,markerstrokewidth=0.0,color=:grey,alpha=0.2,grid=:none,
+    xlabel="Mean expression",ylabel="Dispersion parameter",fontfamily = "Arial",dpi=300,
+    size=(400,300),legend=:none,tickfontsize=10,guidefontsize=12)
 
 log_α_mom = log.(α_mom)
 
