@@ -1,7 +1,48 @@
-struct LongTailsDataSet
-    K::Matrix{Int}
-    effLengths::Matrix
+struct Design
+    matrix::Matrix{Float64}
+    expandedMatrix::Matrix{Float64}
+    formula::Formula
 end
+
+function Design(formula::Formula, metadata::DataFrame)
+    metadata = convertToFactor!(metadata)
+    designMatrix = modelmatrix(formula, metadata)
+    extendedDesignMatrix = buildExtendedDesignMatrix(metadata)
+
+    Design(designMatrix, extendedDesignMatrix, formula)
+end
+
+
+struct LongTailsDataSet
+    K::Matrix{Int64}
+    effLengths::Matrix{Float64}
+    nf::Matrix{Float64}
+    μ::Vector{Float64}
+    σ²::Vector{Float64}
+
+    design::Design
+end
+
+
+function LongTailsDataSet(K::Matrix{Int}, effLengths::Matrix{Float64},
+    metadata::DataFrame, formula::Formula)
+    nf = scalingFactors(K, effLengths)
+    design = Design(formula, metadata)
+    LongTailsDataSet(K,
+        effLengths,
+        nf,
+        vec(mean(K; dims=1)),
+        vec(var(K; dims=1)),
+        design
+    )
+end
+
+
+counts(d::LongTailsDataSet;norm=false) = norm ? d.K ./ d.nf : d.K
+designMatrix(d::LongTailsDataSet;expanded=false) = expanded ? d.design.expandedMatrix : d.design.matrix
+μ(d::LongTailsDataSet) = d.μ
+σ²(d::LongTailsDataSet) = d.σ²
+nf(d::LongTailsDataSet) = d.nf
 
 
 """
@@ -24,20 +65,20 @@ end
     Returns a matrix with scaling offsets for each gene and sample.
 
 """
-function scalingFactors(data::LongTailsDataSet)
+function scalingFactors(K::Matrix{Int}, effLengths::Matrix{Float64})
 
-    L = data.effLengths
+    L = effLengths
     L ./= exp.(mean(log.(L);dims=1))
 
-    effLengthNormalizedCounts = data.K ./ L 
+    effLengthNormalizedCounts = K ./ L 
 
     ### Correcting what I believe is a bug in the original code
     logGeoMeans = map(logGeoMeanZeros, eachcol(effLengthNormalizedCounts))
     mask = @. effLengthNormalizedCounts > 0 & !isinf(logGeoMeans)'
 
-    sj = zeros(Float64,size(data.K,1))
+    sj = zeros(Float64,size(K,1))
 
-    for i in axes(data.K,1)
+    for i in axes(K,1)
         z = log.(effLengthNormalizedCounts[i,:]) .- logGeoMeans
         sj[i] = z[mask[i,:]] |> median |> exp
     end 

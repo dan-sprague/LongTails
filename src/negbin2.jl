@@ -43,7 +43,7 @@ function nb_alpha_cr_nll(y,X,μ̂,log_α)
 
 end
 
-function irls(data::LongTailsDataSet,β,σr)
+function irls(data::NormalizedLongTailsDataSet,β,σr)
     μ = exp.(model.X * β)
     λr  = 1 / (σr^2) 
     z = log(μ / model.sj) + ((model.y .- μ) ./ μ)

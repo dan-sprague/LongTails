@@ -11,15 +11,15 @@ end
 
 meancount(t,X) = transpose(X) * t 
 
-function method_of_moments(x)
-    μ = mean(x)
-    s² = var(x)
-
-    max((s² - μ) / μ^2,1e-4)
+function method_of_moments(x::LongTailsDataSet)
+    xim = mean(1 ./ x.nf)
+    @. max((x.σ² - xim*x.μ) / x.μ,1e-4)
 end
 
-function linear_μ(model::NegBin2)
-    X * ((model.X'model.X) \ (model.X'model.norm_counts))
+function linear_μ(data::LongTailsDataSet)
+    QR = qr(X)
+
+    QR \ counts(data;norm=true)
 end
 
 
