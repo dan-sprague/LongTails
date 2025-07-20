@@ -1,6 +1,6 @@
-function gamma_irls_identity(X, y; max_iter=100, tol=1e-6, filter_outliers=true)
+function gamma_irls_identity(X, y; max_iter=100, tol=1e-6, filter_outliers=true,weights=nothing)
     n, p = size(X)
-    β = [0.1, 1.0] 
+    β = ones(p)
     
     good_idx = trues(n)
     
@@ -12,7 +12,11 @@ function gamma_irls_identity(X, y; max_iter=100, tol=1e-6, filter_outliers=true)
         η = X_sub * β
         μ = max.(η, 1e-6)  
         
-        w = 1 ./ (μ .^ 2)  
+        w = 1 ./ (μ .^ 2) 
+        if weights !== nothing
+            w = w .* weights[good_idx]
+        end
+    
         z = η + (y_sub - μ)
         
 

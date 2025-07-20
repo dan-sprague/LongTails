@@ -18,9 +18,10 @@ function method_of_moments(x::LongTailsDataSet)
     @. max((var - mu) / mu^2,1e-4)
 end
 
-function linear_μ(data::LongTailsDataSet)
-    QR = qr(designMatrix(data))
+function linear_μ(data::LongTailsDataSet;expanded = false)
+    QR = qr(designMatrix(data;expanded=expanded))
     QR \ counts(data;norm=true)
+
 end
 
 

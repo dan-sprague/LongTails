@@ -1,14 +1,22 @@
 using Random
 using Distributions
 using Optim 
-using StatsBase
-using LinearAlgebra
 using Base.Threads
 using Plots
-using SpecialFunctions
-using DataFrames
-using StatsModels
-using CategoricalArrays
+using SpecialFunctions:loggamma,digamma,trigamma
+using DataFrames:DataFrame
+using StatsModels:@formula
+
+using StatsModels:modelmatrix
+using StatsBase:mean, var, sum
+using LinearAlgebra:qr, I, tr, det
+using StatsBase:geomean
+using StatsBase:median
+using StatsBase:logmean
+
+using CategoricalArrays:categorical
+using CategoricalArrays:levels
+using CategoricalArrays:levels!
 ∑ = sum 
 
 const newaxis = [CartesianIndex()]
@@ -20,7 +28,7 @@ include("src/transcriptome.jl")
 include("src/utils.jl")
 include("src/dispersion_trend.jl")
 include("src/math.jl")
-include("src/gamma.jl")
+include("src/gamma_irls.jl")
 
 
 metadata = DataFrame(
@@ -48,8 +56,8 @@ config = (distribution = PowerLaw(),
 )
 simulation = rand(DifferentialTranscriptome(config...))
 T = simulation.counts 
+count_mask = vec((sum(T, dims=1) .> 10))
 mask = clean_zeros(T)
-
 data = LongTailsDataSet(T[:,mask], ones(Float64,size(T[:,mask])),design)
 
 α_mom = method_of_moments(data)
@@ -57,13 +65,15 @@ data = LongTailsDataSet(T[:,mask], ones(Float64,size(T[:,mask])),design)
 
 log_α_mom = log.(α_mom)
 
-
+weights = sqrt.(μ(data) ./ mean(μ(data)))
 X = [ones(length(μ(data))) 1 ./ μ(data)]
-(a0,a1),good_idx = gamma_irls_identity(X, simulation.parameters.α[mask]; max_iter=100, tol=1e-4)
+(a0,a1),good_idx = gamma_irls_identity(X, simulation.parameters.α[mask]; max_iter=100, tol=1e-4,
+weights = weights)
 x_tr = 1:1e4
 y_tr = atr.(x_tr,a1,a0)
 
-@time (a0,a1),good_idx = gamma_irls_identity(X, α_mom; max_iter=100, tol=1e-6)
+@time (a0,a1),good_idx = gamma_irls_identity(X, α_mom; max_iter=100, tol=1e-6,
+weights = weights)
 
 x = 1:1e4
 y = atr.(x,a1,a0)
@@ -82,11 +92,9 @@ scatter!(μ(data)[good_idx],α_mom[good_idx],axis=:log,markerstrokewidth=0.0,col
 plot!(x,y,color=:black,linewidth=2,label="α_mom prior Fit",)
 
 
+O = linear_μ(data)
 
 
-QR = qr(designMatrix)
-
-QR \ T
 
 function cr_grad(X,μ,α)
     W = diagm(@. 1 / ((1 / μ) + α))
