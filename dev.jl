@@ -6,7 +6,6 @@ using LinearAlgebra
 using Base.Threads
 using Plots
 using SpecialFunctions
-using GLM
 using DataFrames
 using StatsModels
 using CategoricalArrays
@@ -44,7 +43,7 @@ config = (distribution = PowerLaw(),
         design = designMatrix(design;expanded=false),
         αtr_σd = 0.1,
         αtr_a1 = 0.5,
-        αtr_a0 = 0.05,
+        αtr_a0 = 0.02,
         avg_effective_length = 2000,
         n_genes = 10000
 )
@@ -56,11 +55,34 @@ data = LongTailsDataSet(T[:,mask], ones(Float64,size(T[:,mask])),design)
 
 α_mom = method_of_moments(data)
 
-scatter(μ(data),α_mom,axis=:log,label=:none,markerstrokewidth=0.0,color=:grey,alpha=0.2,grid=:none,
-    xlabel="Mean expression",ylabel="Dispersion parameter",fontfamily = "Arial",dpi=300,
-    size=(400,300),legend=:none,tickfontsize=10,guidefontsize=12)
 
 log_α_mom = log.(α_mom)
+
+
+X = [ones(length(μ(data))) 1 ./ μ(data)]
+(a0,a1),good_idx = gamma_irls_identity(X, simulation.parameters.α[mask]; max_iter=100, tol=1e-4)
+x_tr = 1:1e4
+y_tr = atr.(x_tr,a1,a0)
+
+@time (a0,a1),good_idx = gamma_irls_identity(X, α_mom; max_iter=100, tol=1e-6)
+
+x = 1:1e4
+y = atr.(x,a1,a0)
+function atr(μ, a1, a0)
+    (a1 * (1 / μ)) + a0
+end
+
+
+scatter(μ(data)[good_idx],simulation.parameters.α[mask][good_idx],axis=:log,markerstrokewidth=0.0,color=:grey,alpha=0.2,grid=:none,
+    xlabel="Mean expression",ylabel="Dispersion parameter",fontfamily = "Arial",dpi=300,
+    size=(400,300),tickfontsize=10,guidefontsize=12,label="Simulated Truth",legend=:bottomright)
+plot!(x_tr,y_tr,color=:red,linewidth=2,label="α prior (Simulated Truth)")
+scatter!(μ(data)[good_idx],α_mom[good_idx],axis=:log,markerstrokewidth=0.0,color=:green,alpha=0.2,grid=:none,
+    xlabel="Mean expression",ylabel="Dispersion parameter",fontfamily = "Arial",dpi=300,
+    size=(400,300),tickfontsize=10,guidefontsize=12,label="MoM estimates")
+plot!(x,y,color=:black,linewidth=2,label="α_mom prior Fit",)
+
+
 
 
 QR = qr(designMatrix)

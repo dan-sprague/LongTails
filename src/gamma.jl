@@ -1,53 +1,49 @@
-  """
-    gamma_reg_transform(μ,ϕ)
-
-Takes the mean and dispersion parameter of a gamma distribution and returns the shape and scale parameters of the corresponding gamma distribution.
-"""
-function gamma_reg_transform(μ,ϕ)
-    k = 1 / ϕ
-    θ = @. μ * ϕ
-    k,θ
-end
-
-
-function gamma_trend_nll(α,x,a1,a0,ϕ)
-    
-    a1 = exp(a1)
-    a0 = exp(a0)
-    ϕ = exp(ϕ)
-    μ = atr.(x,a1,a0)
-
-    k,θ = gamma_reg_transform(μ,ϕ)
-    sum(@. -logpdf(Gamma(k,θ),α))
-end
-
-
-function gamma_irls_identity(X, y; max_iter=100, tol=1e-6)
+function gamma_irls_identity(X, y; max_iter=100, tol=1e-6, filter_outliers=true)
     n, p = size(X)
-    β = randn(p)
+    β = [0.1, 1.0] 
     
-    @inbounds for iter in 1:max_iter
-        η = X * β
-        μ = η
-        μ = max.(μ, 1e-6)  # Ensure μ > 0
+    good_idx = trues(n)
+    
+    for _ in 1:max_iter
+
+        X_sub = @view X[good_idx, :]
+        y_sub = @view y[good_idx]
         
-        W = diagm(1 ./ (μ .^ 2))
-        z = η + (y - μ)
+        η = X_sub * β
+        μ = max.(η, 1e-6)  
         
-        β_new = (X' * W * X) \ (X' * W * z)
+        w = 1 ./ (μ .^ 2)  
+        z = η + (y_sub - μ)
         
-        if norm(β_new - β) < tol
-            return β_new
+
+        XtWX = X_sub' * (w .* X_sub)
+        XtWz = X_sub' * (w .* z)
+        
+        β_new = XtWX \ XtWz
+        
+        # Check for positive coefficients
+        if !all(β_new .> 0)
+            error("Gamma IRLS failed: negative coefficients")
         end
+        
+        if filter_outliers
+            fitted_all = X * β_new
+            residuals = y ./ max.(fitted_all, 1e-6)
+            
+            good_idx = (residuals .>= 1e-4) .& (residuals .<= 15.0)
+            if sum(good_idx) == 0
+                error("All observations filtered out")
+            end
+        end
+        
+        # Check convergence using log fold change criterion
+        if sum(log.(β_new ./ β).^2) < tol
+            return β_new,good_idx
+        end
+        
         β = β_new
     end
     
-    return β
+    @warn "IRLS did not converge after $max_iter iterations"
+    return β,good_idx
 end
-
-
-X = [ones(length(mu)) 1 ./ mu]
-
-@time gamma_irls_identity(X, simulation.parameters.α[mask]; max_iter=100, tol=1e-4)
-
-
