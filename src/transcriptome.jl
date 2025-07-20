@@ -86,7 +86,8 @@ function Base.rand(rng::AbstractRNG,T::DifferentialTranscriptome)
     αtr_σd = T.αtr_σd
     n_cov = size(designMatrix,2) - 1
     K = zeros(Int,size(designMatrix,1),T.n_genes)
-    β = rand(Normal(),n_cov,T.n_genes)
+    β = rand(Normal(),n_cov,T.n_genes) .* rand(Bernoulli(0.1),T.n_genes)'
+    α = zeros(Float64,T.n_genes)
     baseMean = rand(d,T.n_genes)
 
     sizeFactors = sim_library_size(size(designMatrix,1))
@@ -95,13 +96,15 @@ function Base.rand(rng::AbstractRNG,T::DifferentialTranscriptome)
         offset = logSizeFactors
         log_counts = offset .+ designMatrix * vcat(log(baseMean[i]),β[:,i])
         counts = exp.(log_counts)
-        α = αtr_sample(mean(counts), T)
+        α[i] = αtr_sample(mean(counts), T)
 
-        K[:,i] .= rand.(NegBin2.(counts,Ref(α)))
+        K[:,i] .= rand.(NegBin2.(counts,Ref(α[i])))
 
     end
 
-    (counts = K,parameters = (β = vcat(baseMean',β),sj = sizeFactors))
+    (counts = K,parameters = (β = vcat(baseMean',β),sj = sizeFactors,α = α),
+     design = designMatrix, distribution = d, αtr_σd = αtr_σd,
+     avg_effective_length = T.avg_effective_length)
 end
 
 

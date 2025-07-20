@@ -6,13 +6,13 @@ using LinearAlgebra
 using Base.Threads
 using Plots
 using SpecialFunctions
-using GLM
 using DataFrames
 using StatsModels
 using CategoricalArrays
 ∑ = sum 
 
 const newaxis = [CartesianIndex()]
+
 include("src/data.jl")
 include("src/likelihood.jl")
 include("src/negbin2.jl")
@@ -31,60 +31,62 @@ metadata = DataFrame(
 #    y = [1,50,55,2,35,3]
 )
 
-convertToFactor!(metadata)
-extended_metadata = buildExtendedDesignMatrix(metadata)
-
 FORMULA = "logFC ~ condition + batch"
 
 f = eval(Meta.parse("@formula($FORMULA + 1)"))
-designMatrix = modelmatrix(f,metadata)
-expandedDesignMatrix = modelmatrix(f,extended_metadata)
+design = Design(f,metadata)
 
 
 
 config = (distribution = PowerLaw(),
-        design = designMatrix,
+        design = designMatrix(design;expanded=false),
         αtr_σd = 0.1,
         αtr_a1 = 0.5,
-        αtr_a0 = 0.025,
+        αtr_a0 = 0.02,
         avg_effective_length = 2000,
         n_genes = 10000
 )
+simulation = rand(DifferentialTranscriptome(config...))
+T = simulation.counts 
+mask = clean_zeros(T)
 
-c = []
-for i in 1:100
-    simulation = rand(DifferentialTranscriptome(config...))
-    effLengths = ones(6,10000)
+data = LongTailsDataSet(T[:,mask], ones(Float64,size(T[:,mask])),design)
 
-    data = LongTailsDataSet(simulation.counts,effLengths)
-    s = simpleScalingFactors(simulation.counts)
+α_mom = method_of_moments(data)
 
-    push!(c,cor(s,simulation.parameters.sj))
-end
-T .= Int.(ceil.(T .* permutedims(FC_matrix)))
-X = [0,0,0,1,1,1]
-
-FC!(T,X;perc_expanding=1)
-
-T = clean_zeros(T)
-α_init = zeros(Float64,size(T,2))
-
-
-
-X = Int.(X .== unique(X)')
-
-data = LongTailsDataSet(X,T)
-
-
-α_mom = map(t -> method_of_moments(t),eachcol(T))
 
 log_α_mom = log.(α_mom)
 
 
+X = [ones(length(μ(data))) 1 ./ μ(data)]
+(a0,a1),good_idx = gamma_irls_identity(X, simulation.parameters.α[mask]; max_iter=100, tol=1e-4)
+x_tr = 1:1e4
+y_tr = atr.(x_tr,a1,a0)
+
+@time (a0,a1),good_idx = gamma_irls_identity(X, α_mom; max_iter=100, tol=1e-6)
+
+x = 1:1e4
+y = atr.(x,a1,a0)
+function atr(μ, a1, a0)
+    (a1 * (1 / μ)) + a0
+end
+
+
+scatter(μ(data)[good_idx],simulation.parameters.α[mask][good_idx],axis=:log,markerstrokewidth=0.0,color=:grey,alpha=0.2,grid=:none,
+    xlabel="Mean expression",ylabel="Dispersion parameter",fontfamily = "Arial",dpi=300,
+    size=(400,300),tickfontsize=10,guidefontsize=12,label="Simulated Truth",legend=:bottomright)
+plot!(x_tr,y_tr,color=:red,linewidth=2,label="α prior (Simulated Truth)")
+scatter!(μ(data)[good_idx],α_mom[good_idx],axis=:log,markerstrokewidth=0.0,color=:green,alpha=0.2,grid=:none,
+    xlabel="Mean expression",ylabel="Dispersion parameter",fontfamily = "Arial",dpi=300,
+    size=(400,300),tickfontsize=10,guidefontsize=12,label="MoM estimates")
+plot!(x,y,color=:black,linewidth=2,label="α_mom prior Fit",)
 
 
 
 
+QR = qr(designMatrix)
+
+QR \ T
 
 function cr_grad(X,μ,α)
     W = diagm(@. 1 / ((1 / μ) + α))
